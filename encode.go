@@ -667,22 +667,37 @@ type structEncoder struct {
 }
 
 type structFields struct {
-	list         []field
-	byExactName  map[string]*field
-	byFoldedName map[string]*field
+	list                 []field
+	byExactName          map[string]*field
+	byFoldedName         map[string]*field
+	nonoptionalNullables map[*field]struct{}
+	error                error
 }
 
 func (se structEncoder) encode(e *encodeState, v reflect.Value, opts encOpts) {
+	if se.fields.error != nil {
+		e.error(se.fields.error)
+	}
+
 	next := byte('{')
 FieldLoop:
 	for i := range se.fields.list {
 		f := &se.fields.list[i]
+		fNameColon := f.nameNonEsc
+		if opts.escapeHTML {
+			fNameColon = f.nameEscHTML
+		}
 
 		// Find the nested struct field by following f.index.
 		fv := v
 		for _, i := range f.index {
 			if fv.Kind() == reflect.Pointer {
 				if fv.IsNil() {
+					if f.nullable && !f.optional {
+						e.WriteByte(next)
+						next = ','
+						e.WriteString(fNameColon + "null")
+					}
 					continue FieldLoop
 				}
 				fv = fv.Elem()
@@ -693,13 +708,25 @@ FieldLoop:
 		if f.omitEmpty && isEmptyValue(fv) {
 			continue
 		}
+		if f.optional {
+			if fv.IsNil() {
+				continue
+			}
+			fv = fv.Elem()
+		}
+		if f.nullable {
+			if fv.IsNil() {
+				e.WriteByte(next)
+				next = ','
+				e.WriteString(fNameColon + "null")
+				continue
+			}
+			fv = fv.Elem()
+		}
+
 		e.WriteByte(next)
 		next = ','
-		if opts.escapeHTML {
-			e.WriteString(f.nameEscHTML)
-		} else {
-			e.WriteString(f.nameNonEsc)
-		}
+		e.WriteString(fNameColon)
 		opts.quoted = f.quoted
 		f.encoder(e, fv, opts)
 	}
@@ -1038,6 +1065,8 @@ type field struct {
 	typ       reflect.Type
 	omitEmpty bool
 	quoted    bool
+	nullable  bool
+	optional  bool
 
 	encoder encoderFunc
 }
@@ -1153,6 +1182,8 @@ func typeFields(t reflect.Type) structFields {
 						typ:       ft,
 						omitEmpty: opts.Contains("omitempty"),
 						quoted:    quoted,
+						nullable:  opts.Contains("nullable"),
+						optional:  opts.Contains("optional"),
 					}
 					field.nameBytes = []byte(field.name)
 
@@ -1229,20 +1260,40 @@ func typeFields(t reflect.Type) structFields {
 	fields = out
 	sort.Sort(byIndex(fields))
 
-	for i := range fields {
-		f := &fields[i]
-		f.encoder = typeEncoder(typeByIndex(t, f.index))
-	}
 	exactNameIndex := make(map[string]*field, len(fields))
 	foldedNameIndex := make(map[string]*field, len(fields))
-	for i, field := range fields {
-		exactNameIndex[field.name] = &fields[i]
-		// For historical reasons, first folded match takes precedence.
-		if _, ok := foldedNameIndex[string(foldName(field.nameBytes))]; !ok {
-			foldedNameIndex[string(foldName(field.nameBytes))] = &fields[i]
+	var nonoptionalNullables map[*field]struct{}
+	for i := range fields {
+		f := &fields[i]
+		err := checkStructField(t, f)
+		if err != nil {
+			return structFields{nil, nil, nil, nil, err}
 		}
+		exactNameIndex[f.name] = f
+		// For historical reasons, first folded match takes precedence.
+		if _, ok := foldedNameIndex[string(foldName(f.nameBytes))]; !ok {
+			foldedNameIndex[string(foldName(f.nameBytes))] = f
+		}
+
+		fieldType := typeByIndex(t, f.index)
+
+		// optional and nullable handling: adjust fieldType for encoder, track non-optional nullable fields.
+		if f.nullable {
+			fieldType = fieldType.Elem()
+			if !f.optional {
+				if nonoptionalNullables == nil {
+					nonoptionalNullables = make(map[*field]struct{})
+				}
+				nonoptionalNullables[f] = struct{}{}
+			}
+		}
+		if f.optional {
+			fieldType = fieldType.Elem()
+		}
+
+		f.encoder = typeEncoder(fieldType)
 	}
-	return structFields{fields, exactNameIndex, foldedNameIndex}
+	return structFields{fields, exactNameIndex, foldedNameIndex, nonoptionalNullables, nil}
 }
 
 // dominantField looks through the fields, all of which are known to
