@@ -396,51 +396,6 @@ type DoublePtr struct {
 	J **int
 }
 
-type OptionalsNullables struct {
-	OptionalsNullablesEmbedded
-	*OptionalsNullablesPtrEmbedded
-	N     *int   `json:"n,nullable"`
-	O     *int   `json:"o,optional"`
-	ON    **int  `json:"on,optional,nullable"`
-	ONPtr ***int `json:"onPtr,optional,nullable"`
-}
-
-type OptionalsNullablesEmbedded struct {
-	EN  *int  `json:"en,nullable"`
-	EO  *int  `json:"eo,optional"`
-	EON **int `json:"eon,optional,nullable"`
-}
-
-type OptionalsNullablesPtrEmbedded struct {
-	EPN  *int  `json:"epn,nullable"`
-	EPO  *int  `json:"epo,optional"`
-	EPON **int `json:"epon,optional,nullable"`
-}
-
-type OptionalsNullablesBadNotEnoughIndirection1 struct {
-	X int `json:"x,nullable"`
-}
-
-type OptionalsNullablesBadNotEnoughIndirection2 struct {
-	X int `json:"x,optional"`
-}
-
-type OptionalsNullablesBadNotEnoughIndirection3 struct {
-	X *int `json:"x,optional,nullable"`
-}
-
-type OptionalsNullablesBadOmitempty1 struct {
-	X *int `json:"x,nullable,omitempty"`
-}
-
-type OptionalsNullablesBadOmitempty2 struct {
-	X *int `json:"x,optional,omitempty"`
-}
-
-type OptionalsNullablesBadOmitempty3 struct {
-	X *int `json:"x,optional,nullable,omitempty"`
-}
-
 var unmarshalTests = []struct {
 	CaseName
 	in                    string
@@ -482,64 +437,6 @@ var unmarshalTests = []struct {
 	{CaseName: Name(""), in: "\r 1.2 ", ptr: new(float64), out: 1.2},
 	{CaseName: Name(""), in: "\t -5 \n", ptr: new(int16), out: int16(-5)},
 	{CaseName: Name(""), in: "\t \"a\\u1234\" \n", ptr: new(string), out: "a\u1234"},
-
-	// optionals and nullables
-	{
-		CaseName: Name(""),
-		in:       `{"n":1,"o":2,"on":3,"onPtr":4,"en":5,"eo":6,"eon":7,"epn":8,"epo":9,"epon":10}`,
-		ptr:      new(OptionalsNullables),
-		out: OptionalsNullables{
-			N:     toPtr(1),
-			O:     toPtr(2),
-			ON:    toPtr(toPtr(3)),
-			ONPtr: toPtr(toPtr(toPtr(4))),
-			OptionalsNullablesEmbedded: OptionalsNullablesEmbedded{
-				EN:  toPtr(5),
-				EO:  toPtr(6),
-				EON: toPtr(toPtr(7)),
-			},
-			OptionalsNullablesPtrEmbedded: &OptionalsNullablesPtrEmbedded{
-				EPN:  toPtr(8),
-				EPO:  toPtr(9),
-				EPON: toPtr(toPtr(10)),
-			},
-		},
-	},
-	{
-		CaseName: Name(""),
-		in:       `{"n":0,"o":0,"on":0,"onPtr":0,"en":0,"eo":0,"eon":0,"epn":0,"epo":0,"epon":0}`,
-		ptr:      new(OptionalsNullables),
-		out: OptionalsNullables{
-			N:     toPtr(0),
-			O:     toPtr(0),
-			ON:    toPtr(toPtr(0)),
-			ONPtr: toPtr(toPtr(toPtr(0))),
-			OptionalsNullablesEmbedded: OptionalsNullablesEmbedded{
-				EN:  toPtr(0),
-				EO:  toPtr(0),
-				EON: toPtr(toPtr(0)),
-			},
-			OptionalsNullablesPtrEmbedded: &OptionalsNullablesPtrEmbedded{
-				EPN:  toPtr(0),
-				EPO:  toPtr(0),
-				EPON: toPtr(toPtr(0)),
-			},
-		},
-	},
-	{
-		CaseName: Name(""),
-		in:       `{"n":null,"en":null,"epn":null}`,
-		ptr:      new(OptionalsNullables),
-		out:      OptionalsNullables{OptionalsNullablesPtrEmbedded: &OptionalsNullablesPtrEmbedded{}},
-	},
-	{CaseName: Name(""), in: `{}`, ptr: new(OptionalsNullables), err: errors.New("json: non-optional, nullable fields [en, epn, n] not found in object")},
-	{CaseName: Name(""), in: `{"epn":null}`, ptr: new(OptionalsNullables), err: errors.New("json: non-optional, nullable fields [en, n] not found in object")},
-	{CaseName: Name(""), in: `{}`, ptr: new(OptionalsNullablesBadNotEnoughIndirection1), err: errors.New(`json: nullable field "x" requires 1+ levels of indirection, type = "int"`)},
-	{CaseName: Name(""), in: `{}`, ptr: new(OptionalsNullablesBadNotEnoughIndirection2), err: errors.New(`json: optional field "x" requires 1+ levels of indirection, type = "int"`)},
-	{CaseName: Name(""), in: `{}`, ptr: new(OptionalsNullablesBadNotEnoughIndirection3), err: errors.New(`json: optional nullable field "x" requires 2+ levels of indirection, type = "*int"`)},
-	{CaseName: Name(""), in: `{}`, ptr: new(OptionalsNullablesBadOmitempty1), err: errors.New(`json: field "x" cannot have both omitempty and nullable tags`)},
-	{CaseName: Name(""), in: `{}`, ptr: new(OptionalsNullablesBadOmitempty2), err: errors.New(`json: field "x" cannot have both omitempty and optional tags`)},
-	{CaseName: Name(""), in: `{}`, ptr: new(OptionalsNullablesBadOmitempty3), err: errors.New(`json: field "x" cannot have both omitempty and optional tags`)},
 
 	// Z has a "-" tag.
 	{CaseName: Name(""), in: `{"Y": 1, "Z": 2}`, ptr: new(T), out: T{Y: 1}},
@@ -2721,5 +2618,3 @@ func TestUnmarshalMaxDepth(t *testing.T) {
 		}
 	}
 }
-
-func toPtr[T any](t T) *T { return &t }

@@ -11,9 +11,7 @@ import (
 	"encoding"
 	"encoding/base64"
 	"fmt"
-	"maps"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -621,7 +619,6 @@ func (d *decodeState) object(v reflect.Value) error {
 	}
 
 	var fields structFields
-	var nonoptionalNullableFields map[*field]struct{}
 
 	// Check type of target:
 	//   struct or
@@ -647,11 +644,6 @@ func (d *decodeState) object(v reflect.Value) error {
 		}
 	case reflect.Struct:
 		fields = cachedTypeFields(t)
-		if fields.error != nil {
-			d.saveError(fields.error)
-			return nil
-		}
-		nonoptionalNullableFields = maps.Clone(fields.nonoptionalNullables)
 		// ok
 	default:
 		d.saveError(&UnmarshalTypeError{Value: "object", Type: t, Offset: int64(d.off)})
@@ -688,7 +680,6 @@ func (d *decodeState) object(v reflect.Value) error {
 		// Figure out field corresponding to key.
 		var subv reflect.Value
 		destring := false // whether the value is wrapped in a string to be decoded first
-		optional := false
 
 		if v.Kind() == reflect.Map {
 			elemType := t.Elem()
@@ -703,11 +694,9 @@ func (d *decodeState) object(v reflect.Value) error {
 			if f == nil {
 				f = fields.byFoldedName[string(foldName(key))]
 			}
-			delete(nonoptionalNullableFields, f)
 			if f != nil {
 				subv = v
 				destring = f.quoted
-				optional = f.optional
 				for _, i := range f.index {
 					if subv.Kind() == reflect.Pointer {
 						if subv.IsNil() {
@@ -738,12 +727,6 @@ func (d *decodeState) object(v reflect.Value) error {
 			} else if d.disallowUnknownFields {
 				d.saveError(fmt.Errorf("json: unknown field %q", key))
 			}
-		}
-		if optional {
-			if subv.IsNil() {
-				subv.Set(reflect.New(subv.Type().Elem()))
-			}
-			subv = subv.Elem()
 		}
 
 		// Read : before value.
@@ -834,15 +817,6 @@ func (d *decodeState) object(v reflect.Value) error {
 		if d.opcode != scanObjectValue {
 			panic(phasePanicMsg)
 		}
-	}
-
-	if len(nonoptionalNullableFields) > 0 {
-		fieldNames := make([]string, 0, len(nonoptionalNullableFields))
-		for f := range nonoptionalNullableFields {
-			fieldNames = append(fieldNames, f.name)
-		}
-		sort.Strings(fieldNames)
-		d.saveError(fmt.Errorf("json: non-optional, nullable fields [%s] not found in object", strings.Join(fieldNames, ", ")))
 	}
 	return nil
 }

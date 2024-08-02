@@ -23,7 +23,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/crunk1/go-json/internal/testenv"
+	"github.com/crunk1/gojson/internal/testenv"
 )
 
 type codeResponse struct {

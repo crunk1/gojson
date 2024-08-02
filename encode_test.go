@@ -7,7 +7,6 @@ package json
 import (
 	"bytes"
 	"encoding"
-	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -68,125 +67,6 @@ func TestOmitEmpty(t *testing.T) {
 	}
 	if got := string(got); got != want {
 		t.Errorf("MarshalIndent:\n\tgot:  %s\n\twant: %s\n", indentNewlines(got), indentNewlines(want))
-	}
-}
-
-func TestOptionalNullable(t *testing.T) {
-	var nilStringPtr *string
-	type ToEmbedWithNullable struct {
-		Sn *string `json:"sn,nullable"`
-	}
-
-	cases := []struct {
-		CaseName
-		in      any
-		want    string
-		wantErr error
-	}{
-		{
-			Name("zero values for various normal, optional, nullable, etc types"),
-			struct {
-				S   string   `json:"s"`
-				Se  string   `json:"se,omitempty"`
-				So  *string  `json:"so,optional"`
-				Sn  *string  `json:"sn,nullable"`
-				Son **string `json:"son,optional,nullable"`
-			}{},
-			`{"s":"","sn":null}`,
-			nil,
-		},
-		{
-			Name("optional-nullable null value"),
-			struct {
-				Son **string `json:"son,optional,nullable"`
-			}{Son: &nilStringPtr},
-			`{"son":null}`,
-			nil,
-		},
-		{
-			Name("nullable in embedded struct null value"),
-			struct {
-				ToEmbedWithNullable
-			}{},
-			`{"sn":null}`,
-			nil,
-		},
-		{
-			Name("nullable in uninstantiated embedded struct pointer"),
-			struct {
-				*ToEmbedWithNullable
-			}{},
-			`{"sn":null}`,
-			nil,
-		},
-		{
-			Name("invalid struct - mixing omitempty with optional"),
-			struct {
-				So *string `json:"so,omitempty,optional"`
-			}{},
-			"",
-			errors.New(`json: field "so" cannot have both omitempty and optional tags`),
-		},
-		{
-			Name("invalid struct - mixing omitempty with nullable"),
-			struct {
-				Sn *string `json:"sn,omitempty,nullable"`
-			}{},
-			"",
-			errors.New(`json: field "sn" cannot have both omitempty and nullable tags`),
-		},
-		{
-			Name("invalid struct - mixing omitempty with optional-nullable"),
-			struct {
-				Son **string `json:"son,omitempty,optional,nullable"`
-			}{},
-			"",
-			errors.New(`json: field "son" cannot have both omitempty and optional tags`),
-		},
-		{
-			Name("invalid struct - nullable requires 1+ levels of indirection"),
-			struct {
-				Sn string `json:"sn,nullable"`
-			}{},
-			"",
-			errors.New(`json: nullable field "sn" requires 1+ levels of indirection, type = "string"`),
-		},
-		{
-			Name("invalid struct - optional requires 1+ levels of indirection"),
-			struct {
-				So string `json:"so,optional"`
-			}{},
-			"",
-			errors.New(`json: optional field "so" requires 1+ levels of indirection, type = "string"`),
-		},
-		{
-			Name("invalid struct - optional-nullable requires 2+ levels of indirection #1"),
-			struct {
-				Son string `json:"son,optional,nullable"`
-			}{},
-			"",
-			errors.New(`json: optional nullable field "son" requires 2+ levels of indirection, type = "string"`),
-		},
-		{
-			Name("invalid struct - optional-nullable requires 2+ levels of indirection #2"),
-			struct {
-				Son *string `json:"son,optional,nullable"`
-			}{},
-			"",
-			errors.New(`json: optional nullable field "son" requires 2+ levels of indirection, type = "*string"`),
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.Name, func(t *testing.T) {
-			got, err := Marshal(tt.in)
-			if (err == nil) != (tt.wantErr == nil) || (err != nil && err.Error() != tt.wantErr.Error()) {
-				t.Fatalf(`Marshal error: got "%v", want "%v"`, err, tt.wantErr)
-			}
-			if string(got) != tt.want {
-				t.Errorf("Marshal:\n\tgot:  %s\n\twant: %s", got, tt.want)
-			}
-		})
 	}
 }
 

@@ -24,8 +24,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/crunk1/go-json/internal/cfg"
-	"github.com/crunk1/go-json/internal/platform"
+	"github.com/crunk1/gojson/internal/cfg"
+	"github.com/crunk1/gojson/internal/platform"
 )
 
 // Save the original environment during init for use in checks. A test

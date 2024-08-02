@@ -1,3 +1,3 @@
-module github.com/crunk1/go-json
+module github.com/crunk1/gojson
 
 go 1.22
